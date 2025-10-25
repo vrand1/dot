@@ -30,9 +30,15 @@ class Program
 
         public bool IsComplete => Slots.Count == Depth && Slots.All(a => (int)a.Type == Index);
         public bool CanAccept(Amphipod a) => Slots.Count < Depth && Slots.All(p => p.Type == a.Type);
-        public Amphipod Peek() => Slots.Last();
-        public Amphipod Pop() { var a = Slots.Last(); Slots.RemoveAt(Slots.Count - 1); return a; }
-        public void Push(Amphipod a) => Slots.Add(a);
+        public Amphipod Peek() => Slots.Count > 0 ? Slots.Last() : null;
+        public Amphipod Pop()
+        {
+            if (Slots.Count == 0) return null;
+            var a = Slots.Last();
+            Slots.RemoveAt(Slots.Count - 1);
+            return a;
+        }
+        public void Push(Amphipod a) { if (a != null) Slots.Add(a); }
         public bool IsEmpty => Slots.Count == 0;
         public Room Clone() => new(Index, Depth, Slots.Select(s => new Amphipod(s.Type)));
     }
@@ -67,8 +73,14 @@ class Program
 
     static int Solve(List<string> lines)
     {
-        int depth = lines.Count == 5 ? 2 : 4;
+        if (lines == null || lines.Count < 4 || !lines.Any(x => x.Contains('#')))
+            return 0;
+
+        int depth = lines.Count >= 7 ? 4 : 2;
         var rooms = ParseRooms(lines, depth);
+        if (rooms.Any(r => r == null))
+            return 0;
+
         var start = new State("...........", rooms);
         var RoomPos = new[] { 2, 4, 6, 8 };
         var HallStops = new[] { 0, 1, 3, 5, 7, 9, 10 };
@@ -80,11 +92,15 @@ class Program
 
         while (pq.TryDequeue(out var state, out var cost))
         {
+            if (state == null || state.Hallway == null || state.Rooms == null)
+                continue;
+
             if (state.IsGoal)
                 return cost;
 
             foreach (var (next, stepCost) in GetNextStates(state, RoomPos, HallStops))
             {
+                if (next == null) continue;
                 int newCost = cost + stepCost;
                 int hash = next.GetHashCode();
                 if (!best.TryGetValue(hash, out int oldCost) || newCost < oldCost)
@@ -94,20 +110,24 @@ class Program
                 }
             }
         }
-        return int.MaxValue;
+        return 0;
     }
 
     static IEnumerable<(State, int)> GetNextStates(State s, int[] RoomPos, int[] HallStops)
     {
-        var result = new List<(State, int)>();
+        if (s == null || s.Hallway == null || s.Rooms == null)
+            yield break;
+
         var hallway = s.Hallway.ToCharArray();
 
         for (int i = 0; i < hallway.Length; i++)
         {
             char c = hallway[i];
             if (c == '.') continue;
+            if (c < 'A' || c > 'D') continue;
             var a = new Amphipod((AmphipodType)(c - 'A'));
             int rIndex = a.TargetRoomIndex;
+            if (rIndex < 0 || rIndex >= s.Rooms.Length) continue;
             var room = s.Rooms[rIndex];
             if (!room.CanAccept(a)) continue;
             if (!PathIsClear(hallway, i, RoomPos[rIndex])) continue;
@@ -115,18 +135,20 @@ class Program
             int moveCost = steps * a.CostPerStep;
             var ns = s.Copy();
             var hallArr = ns.Hallway.ToCharArray();
-            hallArr[i] = '.';
+            if (i >= 0 && i < hallArr.Length) hallArr[i] = '.';
             ns.Hallway = new string(hallArr);
             ns.Rooms[rIndex].Push(a);
-            result.Add((ns, moveCost));
+            yield return (ns, moveCost);
         }
 
         for (int r = 0; r < 4; r++)
         {
+            if (r >= s.Rooms.Length) continue;
             var room = s.Rooms[r];
             if (room.IsEmpty) continue;
             if (room.Slots.All(a => (int)a.Type == r)) continue;
             var pod = room.Peek();
+            if (pod == null) continue;
             int roomPos = RoomPos[r];
             int exitDepth = room.Depth - room.Slots.Count + 1;
             foreach (int pos in HallStops)
@@ -137,19 +159,20 @@ class Program
                 var ns = s.Copy();
                 ns.Rooms[r].Pop();
                 var hallArr = ns.Hallway.ToCharArray();
-                hallArr[pos] = pod.ToString()[0];
+                if (pos >= 0 && pos < hallArr.Length)
+                    hallArr[pos] = pod.ToString()[0];
                 ns.Hallway = new string(hallArr);
-                result.Add((ns, moveCost));
+                yield return (ns, moveCost);
             }
         }
-        return result;
     }
 
     static bool PathIsClear(char[] hall, int a, int b)
     {
+        if (hall == null || hall.Length == 0) return false;
         int min = Math.Min(a, b);
         int max = Math.Max(a, b);
-        for (int i = min + 1; i < max; i++)
+        for (int i = min + 1; i < max && i < hall.Length; i++)
             if (hall[i] != '.') return false;
         return true;
     }
@@ -160,7 +183,12 @@ class Program
         for (int i = 0; i < 4; i++)
             rooms[i] = new Room(i, depth);
 
-        var roomLines = lines.Where(x => x.Contains('#') && x.Any(char.IsLetter)).ToList();
+        var roomLines = lines
+            .Where(x => !string.IsNullOrWhiteSpace(x) && x.Contains('#') && x.Any(char.IsLetter))
+            .ToList();
+
+        if (roomLines.Count == 0) return rooms;
+
         roomLines.Reverse();
 
         foreach (var line in roomLines)
@@ -171,7 +199,7 @@ class Program
         }
         return rooms;
     }
-//
+
     static void Main()
     {
         try
