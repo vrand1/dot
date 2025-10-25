@@ -174,18 +174,11 @@ class Program
 
     static void Main()
     {
-        try
-        {
             var lines = new List<string>();
             string line;
             while ((line = Console.ReadLine()) != null)
                 lines.Add(line);
             int result = Solve(lines);
             Console.WriteLine(result);
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine( e.Message); // Если ещё ошибки будут надеюсь они выведутся
-        }
     }
 }
