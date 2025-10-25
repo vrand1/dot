@@ -53,7 +53,7 @@ class Program
         public State Copy()
         {
             var newRooms = Rooms.Select(r => r.Clone()).ToArray();
-            return new State(string.Copy(Hallway), newRooms);
+            return new State(Hallway ?? "...........", newRooms);
         }
 
         public override int GetHashCode()
@@ -160,13 +160,13 @@ class Program
         for (int i = 0; i < 4; i++)
             rooms[i] = new Room(i, depth);
 
-        var roomLines = lines.Skip(2).Take(depth).ToList();
+        var roomLines = lines.Where(x => x.Contains('#') && x.Any(char.IsLetter)).ToList();
         roomLines.Reverse();
 
         foreach (var line in roomLines)
         {
             var pods = line.Where(ch => "ABCD".Contains(ch)).ToArray();
-            for (int i = 0; i < pods.Length; i++)
+            for (int i = 0; i < pods.Length && i < 4; i++)
                 rooms[i].Push(new Amphipod((AmphipodType)(pods[i] - 'A')));
         }
         return rooms;
@@ -174,11 +174,18 @@ class Program
 
     static void Main()
     {
-        var lines = new List<string>();
-        string line;
-        while ((line = Console.ReadLine()) != null)
-            lines.Add(line);
-        int result = Solve(lines);
-        Console.WriteLine(result);
+        try
+        {
+            var lines = new List<string>();
+            string line;
+            while ((line = Console.ReadLine()) != null)
+                lines.Add(line);
+            int result = Solve(lines);
+            Console.WriteLine(result);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine( e.Message); // Если ещё ошибки будут надеюсь они выведутся
+        }
     }
 }
