@@ -14,34 +14,32 @@ class Program
     {
         public int Index { get; }
         public int Depth { get; }
-        public List<char> Slots { get; }  // снизу вверх (0 — дно)
+        public List<char> Slots { get; }
         public Room(int index, int depth) { Index = index; Depth = depth; Slots = new List<char>(depth); }
-        public Room Clone()
-        {
-            var r = new Room(Index, Depth);
-            r.Slots.AddRange(Slots);
-            return r;
-        }
+        public Room Clone() { var r = new Room(Index, Depth); r.Slots.AddRange(Slots); return r; }
         public bool IsComplete
         {
             get
             {
                 if (Slots.Count != Depth) return false;
-                for (int i = 0; i < Slots.Count; i++)
-                    if (Slots[i] != (char)('A' + Index)) return false;
+                for (int i = 0; i < Depth; i++) if (Slots[i] != (char)('A' + Index)) return false;
                 return true;
             }
+        }
+        public bool AllCorrectFromBottom()
+        {
+            for (int i = 0; i < Slots.Count; i++) if (Slots[i] != (char)('A' + Index)) return false;
+            return Slots.Count > 0;
         }
         public bool CanAccept(char c)
         {
             if (Slots.Count >= Depth) return false;
-            for (int i = 0; i < Slots.Count; i++)
-                if (Slots[i] != c) return false;
+            for (int i = 0; i < Slots.Count; i++) if (Slots[i] != c) return false;
             return true;
         }
         public int StepsToHallForTop()
         {
-            int k = Slots.Count;             
+            int k = Slots.Count;
             if (k == 0) return -1;
             return Depth - (k - 1);
         }
@@ -52,9 +50,16 @@ class Program
 
     class State
     {
-        public char[] Hall;                  
+        public char[] Hall;
         public Room[] Rooms;
-        public State(char[] hall, Room[] rooms) { Hall = hall; Rooms = rooms; }
+        public int Depth;
+        public State(char[] hall, Room[] rooms, int depth) { Hall = hall; Rooms = rooms; Depth = depth; }
+        public State Clone()
+        {
+            var h = new char[Hall.Length]; Array.Copy(Hall, h, Hall.Length);
+            var rs = new Room[4]; for (int i = 0; i < 4; i++) rs[i] = Rooms[i].Clone();
+            return new State(h, rs, Depth);
+        }
         public bool IsGoal
         {
             get
@@ -64,59 +69,51 @@ class Program
                 return true;
             }
         }
-        public State Clone()
-        {
-            var h = new char[Hall.Length];
-            Array.Copy(Hall, h, Hall.Length);
-            var rs = new Room[4];
-            for (int i = 0; i < 4; i++) rs[i] = Rooms[i].Clone();
-            return new State(h, rs);
-        }
     }
 
     static string Key(State s)
     {
-        var parts = new char[12 + s.Rooms.Sum(r => r.Slots.Count)];
+        int len = 11 + 1 + (s.Depth * 4) + 4;
+        var k = new char[len];
         int p = 0;
-        for (int i = 0; i < 11; i++) parts[p++] = s.Hall[i];
-        parts[p++] = '|';
+        for (int i = 0; i < 11; i++) k[p++] = s.Hall[i];
+        k[p++] = '|';
         for (int r = 0; r < 4; r++)
-            for (int i = 0; i < s.Rooms[r].Slots.Count; i++)
-                parts[p++] = s.Rooms[r].Slots[i];
-        return new string(parts);
+        {
+            for (int i = 0; i < s.Depth; i++)
+                k[p++] = i < s.Rooms[r].Slots.Count ? s.Rooms[r].Slots[i] : '.';
+            k[p++] = '|';
+        }
+        return new string(k);
     }
 
     static int Heuristic(State s)
     {
         int h = 0;
-        var correctBottom = new int[4];
+        var ok = new int[4];
         for (int r = 0; r < 4; r++)
         {
-            int ok = 0;
+            int cnt = 0;
             for (int i = 0; i < s.Rooms[r].Slots.Count; i++)
             {
-                if (s.Rooms[r].Slots[i] == (char)('A' + r)) ok++;
-                else break;
+                if (s.Rooms[r].Slots[i] == (char)('A' + r)) cnt++; else break;
             }
-            correctBottom[r] = ok;
+            ok[r] = cnt;
         }
-
         for (int i = 0; i < s.Hall.Length; i++)
         {
-            char c = s.Hall[i];
-            if (c == '.') continue;
+            char c = s.Hall[i]; if (c == '.') continue;
             int t = c - 'A';
             int steps = Math.Abs(i - RoomPos[t]) + 1;
             h += steps * Cost[t];
         }
-
         for (int r = 0; r < 4; r++)
         {
             for (int i = 0; i < s.Rooms[r].Slots.Count; i++)
             {
                 char c = s.Rooms[r].Slots[i];
                 int t = c - 'A';
-                if (t == r && i < correctBottom[r]) continue;
+                if (t == r && i < ok[r]) continue;
                 int outSteps = s.Rooms[r].Depth - i;
                 int horiz = Math.Abs(RoomPos[r] - RoomPos[t]);
                 int inSteps = 1;
@@ -126,6 +123,13 @@ class Program
         return h;
     }
 
+    static bool Clear(char[] hall, int a, int b)
+    {
+        int min = Math.Min(a, b), max = Math.Max(a, b);
+        for (int x = min + 1; x < max; x++) if (hall[x] != '.') return false;
+        return true;
+    }
+
     static IEnumerable<(State,int)> NextStates(State s)
     {
         for (int r = 0; r < 4; r++)
@@ -133,21 +137,33 @@ class Program
             var room = s.Rooms[r];
             if (room.Slots.Count == 0) continue;
             bool allGood = true;
-            for (int i = 0; i < room.Slots.Count; i++)
-                if (room.Slots[i] != (char)('A' + r)) { allGood = false; break; }
+            for (int i = 0; i < room.Slots.Count; i++) if (room.Slots[i] != (char)('A' + r)) { allGood = false; break; }
             if (allGood) continue;
 
-            int topDist = room.StepsToHallForTop();
+            int up = room.StepsToHallForTop();
             char pod = room.PeekTop();
-            int startX = RoomPos[r];
-            foreach (int pos in HallStops)
+            int from = RoomPos[r];
+            int t = pod - 'A';
+            var dest = s.Rooms[t];
+            if (dest.CanAccept(pod) && Clear(s.Hall, from, RoomPos[t]))
             {
-                if (s.Hall[pos] != '.') continue;
-                if (!Clear(s.Hall, startX, pos)) continue;
                 var ns = s.Clone();
                 ns.Rooms[r].PopTop();
-                ns.Hall[pos] = pod;
-                int steps = topDist + Math.Abs(startX - pos);
+                ns.Rooms[t].PushBottom(pod);
+                int steps = up + Math.Abs(from - RoomPos[t]) + 1;
+                int cost = steps * Cost[t];
+                yield return (ns, cost);
+                continue;
+            }
+            for (int pos = 0; pos < HallStops.Length; pos++)
+            {
+                int hx = HallStops[pos];
+                if (s.Hall[hx] != '.') continue;
+                if (!Clear(s.Hall, from, hx)) continue;
+                var ns = s.Clone();
+                ns.Rooms[r].PopTop();
+                ns.Hall[hx] = pod;
+                int steps = up + Math.Abs(from - hx);
                 int cost = steps * Cost[pod - 'A'];
                 yield return (ns, cost);
             }
@@ -155,14 +171,12 @@ class Program
 
         for (int i = 0; i < s.Hall.Length; i++)
         {
-            char c = s.Hall[i];
-            if (c == '.') continue;
+            char c = s.Hall[i]; if (c == '.') continue;
             int t = c - 'A';
             var room = s.Rooms[t];
             if (!room.CanAccept(c)) continue;
             int door = RoomPos[t];
             if (!Clear(s.Hall, i, door)) continue;
-
             var ns = s.Clone();
             ns.Hall[i] = '.';
             ns.Rooms[t].PushBottom(c);
@@ -172,56 +186,51 @@ class Program
         }
     }
 
-    static bool Clear(char[] hall, int a, int b)
-    {
-        int min = Math.Min(a, b), max = Math.Max(a, b);
-        for (int x = min + 1; x < max; x++) if (hall[x] != '.') return false;
-        return true;
-    }
-
     static int Solve(List<string> lines)
     {
         if (lines == null || lines.Count == 0) return 0;
-
         var roomLines = lines.Where(l => l.Any(ch => ch is >= 'A' and <= 'D')).ToList();
         int depth = roomLines.Count;
         if (depth != 2 && depth != 4) return 0;
 
         var rooms = new Room[4];
         for (int r = 0; r < 4; r++) rooms[r] = new Room(r, depth);
-
         roomLines.Reverse();
         foreach (var row in roomLines)
         {
             var pods = row.Where(ch => ch is >= 'A' and <= 'D').ToArray();
-            if (pods.Length < 4) return 0;
+            if (pods.Length != 4) return 0;
             for (int r = 0; r < 4; r++) rooms[r].PushBottom(pods[r]);
         }
 
-        var start = new State("...........".ToCharArray(), rooms);
+        var start = new State("...........".ToCharArray(), rooms.Select(x => x.Clone()).ToArray(), depth);
 
-        var open = new PriorityQueue<(State S, int G), int>();
-        var best = new Dictionary<string, int>(1 << 20);
-        var k0 = Key(start);
+        var open = new PriorityQueue<(State S, int G, int Seq), (int F, int Seq)>();
+        var best = new Dictionary<string, int>(1 << 18);
+
+        string k0 = Key(start);
         best[k0] = 0;
-        open.Enqueue((start, 0), Heuristic(start));
+        int seq = 0;
+        open.Enqueue((start, 0, seq), (Heuristic(start), seq));
 
-        while (open.TryDequeue(out var item, out _))
+        while (open.TryDequeue(out var item, out var pri))
         {
             var s = item.S;
             int g = item.G;
             var key = Key(s);
-            if (best[key] != g) continue;
+            if (!best.TryGetValue(key, out var gbest) || gbest != g) continue;
             if (s.IsGoal) return g;
 
-            foreach (var (ns, moveCost) in NextStates(s))
+            foreach (var (ns, move) in NextStates(s))
             {
-                int ng = g + moveCost;
+                int ng = g + move;
                 var nk = Key(ns);
-                if (!best.TryGetValue(nk, out var og) || ng < og)
+                if (!best.TryGetValue(nk, out var old) || ng < old)
                 {
                     best[nk] = ng;
-                    open.Enqueue((ns, ng), ng + Heuristic(ns));
+                    seq++;
+                    int f = ng + Heuristic(ns);
+                    open.Enqueue((ns, ng, seq), (f, seq));
                 }
             }
         }
