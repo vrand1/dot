@@ -26,11 +26,6 @@ class Program
                 return true;
             }
         }
-        public bool AllCorrectFromBottom()
-        {
-            for (int i = 0; i < Slots.Count; i++) if (Slots[i] != (char)('A' + Index)) return false;
-            return Slots.Count > 0;
-        }
         public bool CanAccept(char c)
         {
             if (Slots.Count >= Depth) return false;
@@ -41,7 +36,8 @@ class Program
         {
             int k = Slots.Count;
             if (k == 0) return -1;
-            return Depth - (k - 1);
+            int topIdx = k - 1;
+            return Depth - topIdx;
         }
         public char PeekTop() => Slots[^1];
         public char PopTop() { var t = Slots[^1]; Slots.RemoveAt(Slots.Count - 1); return t; }
@@ -136,11 +132,12 @@ class Program
         {
             var room = s.Rooms[r];
             if (room.Slots.Count == 0) continue;
-            bool allGood = true;
-            for (int i = 0; i < room.Slots.Count; i++) if (room.Slots[i] != (char)('A' + r)) { allGood = false; break; }
-            if (allGood) continue;
 
-            int up = room.StepsToHallForTop();
+            bool allRight = true;
+            for (int i = 0; i < room.Slots.Count; i++) if (room.Slots[i] != (char)('A' + r)) { allRight = false; break; }
+            if (allRight) continue;
+
+            int exit = room.StepsToHallForTop();
             char pod = room.PeekTop();
             int from = RoomPos[r];
             int t = pod - 'A';
@@ -149,21 +146,22 @@ class Program
             {
                 var ns = s.Clone();
                 ns.Rooms[r].PopTop();
+                int down = dest.Depth - dest.Slots.Count; 
                 ns.Rooms[t].PushBottom(pod);
-                int steps = up + Math.Abs(from - RoomPos[t]) + 1;
+                int steps = exit + Math.Abs(from - RoomPos[t]) + down;
                 int cost = steps * Cost[t];
                 yield return (ns, cost);
-                continue;
+                continue; 
             }
-            for (int pos = 0; pos < HallStops.Length; pos++)
+            for (int j = 0; j < HallStops.Length; j++)
             {
-                int hx = HallStops[pos];
+                int hx = HallStops[j];
                 if (s.Hall[hx] != '.') continue;
                 if (!Clear(s.Hall, from, hx)) continue;
                 var ns = s.Clone();
                 ns.Rooms[r].PopTop();
                 ns.Hall[hx] = pod;
-                int steps = up + Math.Abs(from - hx);
+                int steps = exit + Math.Abs(from - hx);
                 int cost = steps * Cost[pod - 'A'];
                 yield return (ns, cost);
             }
@@ -179,8 +177,9 @@ class Program
             if (!Clear(s.Hall, i, door)) continue;
             var ns = s.Clone();
             ns.Hall[i] = '.';
+            int down = room.Depth - room.Slots.Count;
             ns.Rooms[t].PushBottom(c);
-            int steps = Math.Abs(i - door) + (ns.Rooms[t].Depth - ns.Rooms[t].Slots.Count + 1);
+            int steps = Math.Abs(i - door) + down;
             int cost = steps * Cost[t];
             yield return (ns, cost);
         }
