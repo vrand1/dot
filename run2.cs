@@ -130,7 +130,8 @@
                 cut = candidates[0];
             }
 
-            // Применяем разрез
+            // Применяем разрез 
+            
             var parts = cut.Split('-');
             var gnode = parts[0];
             var unode = parts[1];
