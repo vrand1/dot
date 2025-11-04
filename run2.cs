@@ -12,7 +12,6 @@ class Program
         var dist = new Dictionary<string, int>();
         var prev = new Dictionary<string, string>();
         var q = new Queue<string>();
-
         dist[start] = 0;
         q.Enqueue(start);
 
