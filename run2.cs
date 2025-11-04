@@ -50,6 +50,7 @@ class Program
         return path;
     }
 
+
     static (bool done, string next) NextVirusStep(
         Dictionary<string, SortedSet<string>> g,
         SortedSet<string> gateways,
