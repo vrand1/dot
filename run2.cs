@@ -1,4 +1,8 @@
-﻿class Program
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+
+class Program
 {
     static bool IsGateway(string n) => n.Length > 0 && char.IsUpper(n[0]);
 
@@ -131,7 +135,6 @@
             }
 
             // Применяем разрез 
-            
             var parts = cut.Split('-');
             var gnode = parts[0];
             var unode = parts[1];
